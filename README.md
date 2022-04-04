@@ -402,7 +402,7 @@ export declare const mutatePoint = (point :: request Point) => Point!
 import * as Point from './thirdPartyLib.js' declaredAt './thirdPartyLib.d.js'
 ```
 
-You'll notice that the type signature for `mutatePoint` is `(point :: request Point) => Point!` - this type signature will be layered on top of the imported function. The parameters are simple requests that you'll be required to comply with since you're using a type-checker, while the return value is an auto-tagging assertion, forcing the API to comply with the return value you expected from it.
+You'll notice that the type signature for `mutatePoint` is `(point :: request Point) => Point!` - this type signature will be layered on top of the imported function. The parameters are simple requests that you'll be required to comply with since you're using a type-checker, while the return value is an auto-tagging assertion, forcing the API to comply with the return value you expected from it. When the arguments are passed into a third-party function, they'll be put into a special state that forbids them from beind modified in any way that would cause them to loose interface tags that their caller expects them to have. (e.g. if the `mutatePoint` did `point.x = 'hi there!'`, a runtime error would be thrown, instead of the value silently loosing its tag).
 
 Also note that, if we do go forwards with a proposal like this, we can choose to split it up into many smaller proposals. A base proposal to provide the main features, and side proposals for features such as union types. The whole thing can move through the stages together, but can be discussed independently. Hopefully this can help alleviate some of the concerns about the size of this sort of proposal.
 
