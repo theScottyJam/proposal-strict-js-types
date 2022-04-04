@@ -30,7 +30,7 @@ One more point: This type system isn't attempting to bless every type of obscure
 
 ## The fundamentals
 
-Lets start with the basics, declaring a type. We'll just use `::` syntax for this, this is a strawman, any syntax could be used, we just need to pick something. The `::` syntax is being chosen mostly because the popular choice, `:`, already has so many meanings in the language, and causes issues when you want to declaring types while destructuring.
+Lets start with the basics, declaring a type. We'll just use `::` syntax for this, this is a strawman, any syntax could be used, we just need to pick something. The `::` syntax is being chosen mostly because the popular choice, `:`, already has so many meanings in the language, and causes issues when you want to declare types while destructuring.
 
 As an added nice-to-have feature, we'll also permit you to put a type declaration on the line before the variable/function declaration.
 
@@ -209,7 +209,7 @@ const getX = point => point.x
 getX({ x: 2, y: 3 })
 ```
 
-The getX function's type declaration states that it'll accept any object that's tagged with the `Point` interface. The `!` before `Point` indicates that if the object currently doesn't have a `Point` tag, the runtime should attempt to auto-tag it as follows: If the passed-in value conforms to the interface, it will receive a `Point` tag in a hidden field, otherwise, an error would be thrown. The reason the `!` symbol was chosen was to try and draw attention to the fact that this can be a potential performance bottleneck if you're dealing with especially large interfaces.
+The getX function's type declaration states that it'll accept any object that's tagged with the `Point` interface. The `!` after `Point` indicates that if the object currently doesn't have a `Point` tag, the runtime should attempt to auto-tag it as follows: If the passed-in value conforms to the interface, it will receive a `Point` tag in a hidden field, otherwise, an error would be thrown. The reason the `!` symbol was chosen was to try and draw attention to the fact that this can be a potential performance bottleneck if you're dealing with especially large interfaces.
 
 If you don't place a `!` in front, than an error will be thrown if the function ever receives a value that is untagged, it won't fall back to auto-applying a tag. Note that the user can still apply the tag on their end before passing in a value into a function:
 
@@ -228,7 +228,7 @@ getX(myPoint) // ok
 getX({ x: 2, y: 3 } as Point!) // Also ok. I'm sure the type-checker will have some sort of `as` operator, like TypeScript has.
 ```
 
-A value can loose its tag if it gets modified in an unsupported way. Such modifications would be type-checker errors, but a user isn't required to use a type-checker. The example below is littered with type-checker errors, but it will all run just fine, until you reach the last line.
+A value can lose its tag if it gets modified in an unsupported way. Such modifications would be type-checker errors, but a user isn't required to use a type-checker. The example below is littered with type-checker errors, but it will all run just fine, until you reach the last line.
 
 ```javascript
 interface Point {
@@ -239,8 +239,8 @@ interface Point {
 const myPoint :: Point! = { x: 2, y: 3 }
 myPoint.z = 4 // ok
 myPoint.x = 4 // ok
-myPoint.x = 'hi there!' // Causes myPoint to loose its tag
-delete myPoint.y // Also causes myPoint to loose its tag
+myPoint.x = 'hi there!' // Causes myPoint to lose its tag
+delete myPoint.y // Also causes myPoint to lose its tag
 
 // This will make `myPoint` conform to the `Point` interface again, however, it won't automatically regain its tag.
 myPoint.x = 2
@@ -266,7 +266,7 @@ const getX = point => {
 }
 ```
 
-We've seen the `!` type modifier, in this code snippet we run into another type modifier, the `request` modifier. This `request` modifier is used to indicate that this particular type is only enforced during the type-check phase, and will not be enforced at runtime, at all. In the above example, this means anyone trying to call getX who's using a type-checker will be required to pass in an instance of `Point`, while anyone who's calling it without using a type-checker will simply receive a runtime error if the `x` property was missing from their argument (because we're explicitly throwing an error if this is the case).
+We've seen the `!` type modifier, and in this code snippet we run into another type modifier, the `request` modifier. This `request` modifier is used to indicate that this particular type is only enforced during the type-check phase, and will not be enforced at runtime, at all. In the above example, this means anyone trying to call getX who's using a type-checker will be required to pass in an instance of `Point`, while anyone who's calling it without using a type-checker will simply receive a runtime error if the `x` property was missing from their argument (because we're explicitly throwing an error if this is the case).
 
 It's called `request` because you're simply, politely requesting that the end-user provides a value of this particular type, nothing's being done at runtime to enforce this type. For this reason, within the function definition the `point` parameter is treated as having an `unknown` type, because theoretically it could be receiving any value. Those `if (...) throw ...` assertions are important, not just to make sure the value passed in was valid, but to also make the `return point.x` line pass the type-checker - just like in TypeScript, assertions can be made to teach the type-checker more information about a particular type (i.e. after the first `if` the type-checker knows that the type is an object, and after the second `if` the type checker knows the object has an `x` property, so by the time we get to `return`, it's legal to do `point.x`)
 
@@ -402,7 +402,7 @@ export declare const mutatePoint = (point :: request Point) => Point!
 import * as Point from './thirdPartyLib.js' declaredAt './thirdPartyLib.d.js'
 ```
 
-You'll notice that the type signature for `mutatePoint` is `(point :: request Point) => Point!` - this type signature will be layered on top of the imported function. The parameters are simple requests that you'll be required to comply with since you're using a type-checker, while the return value is an auto-tagging assertion, forcing the API to comply with the return value you expected from it. When the arguments are passed into a third-party function, they'll be put into a special state that forbids them from beind modified in any way that would cause them to loose interface tags that their caller expects them to have. (e.g. if the `mutatePoint` did `point.x = 'hi there!'`, a runtime error would be thrown, instead of the value silently loosing its tag).
+You'll notice that the type signature for `mutatePoint` is `(point :: request Point) => Point!` - this type signature will be layered on top of the imported function. The parameters are simple requests that you'll be required to comply with since you're using a type-checker, while the return value is an auto-tagging assertion, forcing the API to comply with the return value you expected from it. When the arguments are passed into a third-party function, they'll be put into a special state that forbids them from beind modified in any way that would cause them to lose interface tags that their caller expects them to have. (e.g. if the `mutatePoint` did `point.x = 'hi there!'`, a runtime error would be thrown, instead of the value silently loosing its tag).
 
 Also note that, if we do go forwards with a proposal like this, we can choose to split it up into many smaller proposals. A base proposal to provide the main features, and side proposals for features such as union types. The whole thing can move through the stages together, but can be discussed independently. Hopefully this can help alleviate some of the concerns about the size of this sort of proposal.
 
@@ -425,13 +425,13 @@ With a built-in type system like this, and the ability to create interfaces that
 
 You will need to declare what type `globalThis` is. This is important so that the type-checker can know if this is, for example, running in a browser environment, or a node environment, etc. EcmaScript will provide an interface that specifies what should be found on any untampered globalThis object, e.g. if you want to run in any compatible, untampered EcmaScript environment, you can do `declare globalThis as EcmaScriptGlobalThis` where `EcmaScriptGlobalThis` is the globally provided interface for EcmaScript's API. While it wouldn't be included in the spec, Node, and web APIs can choose to globally provide their own interfaces, and someone building a type-checker can choose to support them. Someone expecting to run in a custom environment where globaalThis has been modified can import a declaration file supplied by that environment (or that they write it themselves), and apply that to the `globalThis` value.
 
-The default EcmaScriptGlobalThis interface provided is full of these identity checks (e.g. it was declared using a bunch of `is someValue`). This means, if anyone tampers with any value on globalThis, globalThis will loose its label, and any of your runtime code doing `globaThis.whatever` will fail, because globalThis isn't what you said it was supposed to be. The only way to restore the label is to restore `globalThis` back to its original form. You can still add new stuff to globalThis without making it loose its label, and if you're first-running code you can even replace the globally provided interface with a new one (important if you're a polyfill).
+The default EcmaScriptGlobalThis interface provided is full of these identity checks (e.g. it was declared using a bunch of `is someValue`). This means, if anyone tampers with any value on globalThis, globalThis will lose its label, and any of your runtime code doing `globaThis.whatever` will fail, because globalThis isn't what you said it was supposed to be. The only way to restore the label is to restore `globalThis` back to its original form. You can still add new stuff to globalThis without making it lose its label, and if you're first-running code you can even replace the globally provided interface with a new one (important if you're a polyfill).
 
 ## Other advantages to spec-ing a static-code-analysis tool.
 
 Doing type-checking isn't the only thing a standard code-analysis tool can be used for. Here's a handful of other ideas we could peruse in the future if we go this route:
 * We could include basic, built-in linting. For example, we can state that "using semicolons" is the way to go in JavaScript, and automatically require them if you use the standard code-analysis tool.
-* Along a similar vein, it becomes easier to phase out older, broken features. For example, the `typeof` operator is full of footguns (null is an object? A function's type is `function` but every other object's type is `object`?). It would be hard to add a newer, better `typeof` function to detect primitive types, and then phase out the old `typeof` operator by dis-allowing it when you use the official code analysis tool. Of course, the `typeof` operator will always be available at runtime, it just wouldn't be available for use with the code-analysis tooling (or a warning would be generated if you do use it). Removing support for certain syntax features at "build"-time can help the language loose some weight, and become less foot-gunny.
+* Along a similar vein, it becomes easier to phase out older, broken features. For example, the `typeof` operator is full of footguns (null is an object? A function's type is `function` but every other object's type is `object`?). It would be hard to add a newer, better `typeof` function to detect primitive types, and then phase out the old `typeof` operator by dis-allowing it when you use the official code analysis tool. Of course, the `typeof` operator will always be available at runtime, it just wouldn't be available for use with the code-analysis tooling (or a warning would be generated if you do use it). Removing support for certain syntax features at "build"-time can help the language lose some weight, and become less foot-gunny.
 * Older, deprecated APIs can also be restricted by the code-analysis tooling. For example, the tooling can forbid you to pass a string into `setTimeout` to have it be auto-evaluated. (Yes, `setTimeout` isn't technically part of the EcmaScript spec, but it still would be nice if browsers could do this sort of soft deprecation using the official code-analysis tooling as well. Perhaps the web-APIs would make an "extension" spec describing how the EcmaScript code analyzer should be extended to properly support browser-based APIs).
 * We can make new "keywords" like making `async`/`await` become actual keywords at "build"-time. e.g. you're not allowed to use `await` as a variable name if you want to make the code analyzer happy.
 * Or, we don't do any of these things. These are simply meant to showcase some other potential directions we could take if we had an official code analyzer.
