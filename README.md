@@ -10,16 +10,16 @@ Stage: -1 (Not currently at a stage)
 
 According to the "State of JS survey", static typing is the most wanted featured by JavaScript developers (as seen in their [2020](https://2020.stateofjs.com/en-US/opinions/missing_from_js/) and [2021](https://2021.stateofjs.com/en-US/opinions/#currently_missing_from_js_wins) results). Recently, Microsoft pushed for a [type annotations](https://github.com/tc39/proposal-type-annotations) proposal to help address some of these needs, however, their proposal comes at the cost of having multiple different type-systems operating in the same syntax space, instead of a single, unified type system for JavaScript.
 
-This proposal will take things in the opposite direction and explore something completely different. Their README argues that "TC39 has a tradition of programming language design which favors local, sound checks", and then goes on to state that TypeScript's success is based on not following these principles, which is why a native type-system for JavaScript shouldn't be micro-managed by TC39. However, TypeScript also had severe limitations in what it could accomplish. If we marry the type-checker and the runtime together, we might be able to create a sound type system, one that doesn't leave room for surprises. A type system where, if you say something needs to be a number, it's going to be a number, and that's that (a.k.a. this is a strongly-typed type system, not a weakly-typed one).
+This proposal will take things in the opposite direction and explore something completely different. Their README argues that "TC39 has a tradition of programming language design which favors local, sound checks", and then goes on to state that TypeScript's success is based on not following these principles, which is why a native type-system for JavaScript shouldn't be micro-managed by TC39. However, TypeScript also had severe limitations in what it could accomplish. If we marry the type-checker and the runtime together, we might be able to create a unique and powerful type system, one that can provide runtime guarantees to make sure your program stays in a good state as it is running. A type system where, if you say something needs to be a number, it's going to be a number, and that's that (a.k.a. this is a strongly-typed type system, not a weakly-typed one).
 
-The goal of this proposal is to explore the space of implementing an official strong type system in JavaScript, to see what it would take, and to see the pros and cons of using such an approach. In order to acomplish this proposal, we're going to need to create a new standard document that describes an official JavaScript type-checker - a tool that runs against your JavaScript code before your code is run in a production environment.
+The goal of this proposal is to explore the space of implementing an official strong type system in JavaScript, to see what it would take, and to see the pros and cons of using such an approach. This proposal seeks to balance the need for a strong type system with the reality that some parts of JavaScript just can't be placed into a type-safe system without overcomplicated the type system. In order to accomplish this proposal, we're going to need to create a new standard document that describes an official JavaScript type-checker - a tool that runs against your JavaScript code before your code is run in a production environment.
 
 **NOTE:** In the future, when I have time, I might add finer details to this repository that provides a more complete description of what this proposal will provide, along with prior art, a comparison with different languages, etc, but for now, I just want to address some of the most important points regarding this topic, and provide a general idea of how this kind of type-checker can be created.
 
 # High-Level Objectives
 
-* This type system will be strongly typed. A single, standard weak type system for JavaScript that uses a types-as-comments approach is certainly a valid approach as well that ought to be explored, but this isn't what this proposal is choosing to cover at this moment.
-* Low runtime cost. This will likely be the primary concern about having a strong type system, so one major focus of this proposal will be to provide tools to lower the runtime cost assosiated with strongly typing a dynamic language.
+* This type system strives to be strongly typed. While there may be times when its appropriate to sacrifice "strength" for "ease-of-use", in general we'll aim for a stronger type system.
+* Low runtime cost.
 * Avoid any sort of `"use types"` directive. There's a lot of pushback associated with adding new directives, so it would be nice if we can find a solution that didn't require one.
 * Backwards compatibility. This also means it should be possible to add types to the web-APIs without introducing a breaking change.
 * Unlike Microsoft's proposal, we're not trying to create any parity with existing type systems. We can certainly be inspired by what they've done and refer to them as prior art, but there's no incitive to preserve any kind of backwards compatibility with TypeScript, or any other existing type-system. What's being introduced is too fundamentally different for this sort of thing to matter.
@@ -193,7 +193,7 @@ getX({ x: 2, y: 3 })
 
 The type declaration of the `point` parameter shown above simply describes the shape of an object, and any value that conforms to this shape automatically has that type, whether or not you explicitly gave it that type.
 
-While this works great for TypeScript, it can be problematic if we want a fast type system with strong guarantees. If we allowed a function to be declared in this sort of way in JavaScript, the runtime would have to go through each property of a passed-in object to make sure it conforms to the type, before executing the function's body.
+While this works great for TypeScript, it can be problematic if we want a fast type system that provides runtime assertions on object types. If we allowed a function to be declared in this sort of way in JavaScript, the runtime would have to go through each property of a passed-in object to make sure it conforms to the type, before executing the function's body.
 
 To help improve performance, this proposal will provide a tagging system, which works like this:
 
@@ -211,7 +211,7 @@ getX({ x: 2, y: 3 })
 
 The getX function's type declaration states that it'll accept any object that's tagged with the `Point` interface. The `!` after `Point` indicates that if the object currently doesn't have a `Point` tag, the runtime should attempt to auto-tag it as follows: If the passed-in value conforms to the interface, it will receive a `Point` tag in a hidden field, otherwise, an error would be thrown. The reason the `!` symbol was chosen was to try and draw attention to the fact that this can be a potential performance bottleneck if you're dealing with especially large interfaces.
 
-If you don't place a `!` in front, than an error will be thrown if the function ever receives a value that is untagged, it won't fall back to auto-applying a tag. Note that the user can still apply the tag on their end before passing in a value into a function:
+If you don't place a `!` behind, than an error will be thrown if the function ever receives a value that is untagged, it won't fall back to auto-applying a tag. Note that the user can still apply the tag on their end before passing in a value into a function:
 
 ```javascript
 interface Point {
@@ -333,6 +333,18 @@ A couple other notes on interfaces:
 * You're able to create an interface that describes a nested object structure.
 * You're also able to compose a nested interface using another interface. e.g. `interface MyInterface { x: AnotherInterface }`. If you auto-tag an object with `!` against `MyInterface` from this example, its nested `x` property will also be auto-tagged with `AnotherInterface`.
 
+As a word of warning, this interface system provides no protection against outside actors mutating the reference to the object you're holding. For example:
+
+```javascript
+interface User { name :: string }
+function doThing(user :: User) {
+  thirdPartyOperation(user)
+  return user.name
+}
+```
+
+Nothing is preventing `thirdPartyOperation()` from deleting the `name` property on the passed-in user object. If they do this, then yes, the object will loose its `User` tag, but between `thirdPartyOperation()` and `return user.name` there isn't another assertion that runs, checking if the `User` tag is present. If you suspect that such mutations are possible, it's on you to place `as` assertions throughout your code to ensure the object still properly conforms to the supplied interface. This isn't any different from what we have to deal with in JavaScript today.
+
 ## Classes
 
 Each class definition has an interface bundled with it that describes the shape of its instances. A class full of public and private properties, each with a type declaration would have an associated interface that contains those private and public properties with their corresponding types. Any missing type definitions will be treated as the `any` type.
@@ -388,9 +400,9 @@ Concepts such as Java's `final`, `@Override`, etc would also be interesting topi
 
 ## Misc features
 
-The current rendition of this proposal is mostly trying to focus on features that were important to the overall premise of doing strong, native type-checking in JavaScript. For this reason, many type-related features were only briefly discussed, like union types (`x | y`) or interface inheritance. Certainly, as this proposal matures, we'll need to discuss other type-safe features we'd like to include or not include such as generics, tuple types, class types, mapped object types `{ [key: string]: number }`, abstract classes, etc).
+The current rendition of this proposal is mostly trying to focus on features that were important to the overall premise of doing strong, native type-checking in JavaScript. For this reason, many type-related features were only briefly discussed, like union types (`x | y`) or interface inheritance. Certainly, as this proposal matures, we'll need to discuss other type-safe features we'd like to include or not include such as generics, tuple types, class types, mapped object types `{ [key: string]: number }`, abstract classes, etc). Over [here](https://github.com/sirisian/ecmascript-types), @sirisian has done a wonderful job at putting together a community proposal, advocating for types in JavaScript. Their proposal lists all sorts of possible syntax options we could natively support within JavaScript. With a basic type-engine as described in this proposal, and the syntax features described in their proposal, we could end up with something quite powerful.
 
-It is good to point out that we ought to support a way to add types to something that currently doesn't have types, e.g. something akin to TypeScript's declaration syntax and declaration files. For example:
+It is good to point out that we ought to support a way to add types to an API that currently doesn't have types definitions, e.g. something akin to TypeScript's declaration syntax and declaration files. For example:
 
 ```javascript
 // thirdPartyLib.d.js
@@ -425,7 +437,11 @@ With a built-in type system like this, and the ability to create interfaces that
 
 You will need to declare what type `globalThis` is. This is important so that the type-checker can know if this is, for example, running in a browser environment, or a node environment, etc. EcmaScript will provide an interface that specifies what should be found on any untampered globalThis object, e.g. if you want to run in any compatible, untampered EcmaScript environment, you can do `declare globalThis as EcmaScriptGlobalThis` where `EcmaScriptGlobalThis` is the globally provided interface for EcmaScript's API. While it wouldn't be included in the spec, Node, and web APIs can choose to globally provide their own interfaces, and someone building a type-checker can choose to support them. Someone expecting to run in a custom environment where globaalThis has been modified can import a declaration file supplied by that environment (or that they write it themselves), and apply that to the `globalThis` value.
 
+For this protection to really work, you'd need to re-assert the types of the globalThis properties you expect to be present before you use them (e.g. via an `as` assertion). For example, at the beginning of a function definitions, you can do `globalThis as TheExpectedGlobalThisType`.
+
 The default EcmaScriptGlobalThis interface provided is full of these identity checks (e.g. it was declared using a bunch of `is someValue`). This means, if anyone tampers with any value on globalThis, globalThis will lose its label, and any of your runtime code doing `globaThis.whatever` will fail, because globalThis isn't what you said it was supposed to be. The only way to restore the label is to restore `globalThis` back to its original form. You can still add new stuff to globalThis without making it lose its label, and if you're first-running code you can even replace the globally provided interface with a new one (important if you're a polyfill).
+
+This is just a rough idea of what's possible. Further discussion can be done to help show what's really possible with this idea, and how tedious or safe it is to use this sort of thing.
 
 ## Other advantages to spec-ing a static-code-analysis tool.
 
